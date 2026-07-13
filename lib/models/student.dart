@@ -9,6 +9,7 @@ class Student {
   final DateTime dateOfBirth;
   final String emailId;
   final String phoneNumber;
+  final String address;
   final DateTime joiningDate;
   final Set<CourseType> courseTypes;
   final double totalAmount;
@@ -25,6 +26,7 @@ class Student {
     required this.dateOfBirth,
     required this.emailId,
     required this.phoneNumber,
+    required this.address,
     required this.joiningDate,
     required this.courseTypes,
     required this.totalAmount,
@@ -59,6 +61,7 @@ class Student {
       dateOfBirth: (data['dateOfBirth'] as Timestamp?)?.toDate() ?? DateTime(2000),
       emailId: data['emailId'] as String? ?? '',
       phoneNumber: data['phoneNumber'] as String? ?? '',
+      address: data['address'] as String? ?? '',
       joiningDate: (data['joiningDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
       // Falls back to the legacy single `courseType` field for documents
       // written before multi-select course types were supported.
@@ -81,6 +84,7 @@ class Student {
       'dateOfBirth': Timestamp.fromDate(dateOfBirth),
       'emailId': emailId,
       'phoneNumber': phoneNumber,
+      'address': address,
       'joiningDate': Timestamp.fromDate(joiningDate),
       'courseTypes': courseTypes.map((c) => c.name).toList(),
       'totalAmount': totalAmount,

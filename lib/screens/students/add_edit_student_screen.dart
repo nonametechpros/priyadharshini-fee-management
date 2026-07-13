@@ -22,6 +22,7 @@ class _AddEditStudentScreenState extends ConsumerState<AddEditStudentScreen> {
   late final TextEditingController _firstNameController;
   late final TextEditingController _lastNameController;
   late final TextEditingController _phoneController;
+  late final TextEditingController _addressController;
   late final TextEditingController _amountController;
   late DateTime _dateOfBirth;
   late DateTime _joiningDate;
@@ -36,6 +37,7 @@ class _AddEditStudentScreenState extends ConsumerState<AddEditStudentScreen> {
     _firstNameController = TextEditingController(text: existing?.firstName ?? '');
     _lastNameController = TextEditingController(text: existing?.lastName ?? '');
     _phoneController = TextEditingController(text: existing?.phoneNumber ?? '');
+    _addressController = TextEditingController(text: existing?.address ?? '');
     _amountController = TextEditingController(text: existing != null ? existing.totalAmount.toStringAsFixed(0) : '');
     _dateOfBirth = existing?.dateOfBirth ?? DateTime(DateTime.now().year - 18, 1, 1);
     _joiningDate = existing?.joiningDate ?? DateTime.now();
@@ -47,6 +49,7 @@ class _AddEditStudentScreenState extends ConsumerState<AddEditStudentScreen> {
     _firstNameController.dispose();
     _lastNameController.dispose();
     _phoneController.dispose();
+    _addressController.dispose();
     _amountController.dispose();
     super.dispose();
   }
@@ -85,6 +88,7 @@ class _AddEditStudentScreenState extends ConsumerState<AddEditStudentScreen> {
         dateOfBirth: _dateOfBirth,
         emailId: existing?.emailId ?? '',
         phoneNumber: _phoneController.text.trim(),
+        address: _addressController.text.trim(),
         joiningDate: _joiningDate,
         courseTypes: _courseTypes,
         totalAmount: double.parse(_amountController.text.trim()),
@@ -145,6 +149,16 @@ class _AddEditStudentScreenState extends ConsumerState<AddEditStudentScreen> {
                   if (!RegExp(r'^\d{10}$').hasMatch(v.trim())) return 'Enter a valid 10-digit phone number';
                   return null;
                 },
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _addressController,
+                keyboardType: TextInputType.multiline,
+                textInputAction: TextInputAction.newline,
+                minLines: 2,
+                maxLines: null,
+                decoration: const InputDecoration(labelText: 'Address', prefixIcon: Icon(Icons.home_outlined)),
+                validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
               ),
               const SizedBox(height: 14),
               _DateField(

@@ -89,6 +89,7 @@ class _StudentDetailBody extends ConsumerWidget {
                   const SizedBox(height: 6),
                   Text(student.phoneNumber, style: Theme.of(context).textTheme.bodySmall),
                   const Divider(height: 28),
+                  _DetailRow(label: 'Address', value: student.address),
                   _DetailRow(label: 'Course', value: student.courseTypesLabel),
                   _DetailRow(label: 'Date of birth', value: formatDate(student.dateOfBirth)),
                   _DetailRow(label: 'Joining date', value: formatDate(student.joiningDate)),
