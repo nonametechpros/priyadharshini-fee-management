@@ -2,7 +2,6 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import '../models/course_type.dart';
 import '../models/dashboard_summary.dart';
 
 // The `pdf` package's built-in fonts don't include the ₹ glyph, so the PDF
@@ -23,12 +22,11 @@ Future<void> exportMonthlyFeeSummaryPdf(List<MonthlyFeeSummary> months) async {
           pw.Text('Generated ${DateFormat('dd MMM yyyy').format(DateTime.now())}', style: const pw.TextStyle(fontSize: 10)),
           pw.SizedBox(height: 16),
           pw.TableHelper.fromTextArray(
-            headers: const ['Month', 'Course', 'Collected', 'Pending'],
+            headers: const ['Month', 'Collected', 'Pending'],
             data: [
               for (final m in months)
                 [
                   DateFormat('MMM yyyy').format(m.month),
-                  m.course.label,
                   _pdfCurrencyFormat.format(m.collected),
                   _pdfCurrencyFormat.format(m.pending),
                 ],

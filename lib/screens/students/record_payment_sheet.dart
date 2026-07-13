@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/fee_payment.dart';
 import '../../providers/auth_providers.dart';
+import '../../providers/dashboard_providers.dart';
 import '../../providers/service_providers.dart';
 import '../../utils/formatters.dart';
 
@@ -67,6 +68,10 @@ class _RecordPaymentSheetState extends ConsumerState<RecordPaymentSheet> {
             recordedByUid: appUser.uid,
             recordedByName: appUser.name,
           );
+      ref.invalidate(dashboardSummaryProvider);
+      ref.invalidate(monthlyFeeSummaryProvider);
+      ref.invalidate(earliestPaymentMonthProvider);
+      ref.invalidate(reportsHasNextPageProvider);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       setState(() => _errorText = 'Could not record payment. Please try again.');

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/fee_payment.dart';
 import '../../models/student.dart';
 import '../../providers/auth_providers.dart';
+import '../../providers/dashboard_providers.dart';
 import '../../providers/fee_providers.dart';
 import '../../providers/service_providers.dart';
 import '../../providers/student_providers.dart';
@@ -63,6 +64,8 @@ class _StudentDetailBody extends ConsumerWidget {
     // errors on the missing doc and tears this widget down, which would
     // otherwise dispose `ref` before the steps below could run.
     listNotifier.removeStudent(student.id);
+    ref.invalidate(dashboardSummaryProvider);
+    ref.invalidate(monthlyFeeSummaryProvider);
     Navigator.of(context).pop();
 
     await service.deleteStudent(

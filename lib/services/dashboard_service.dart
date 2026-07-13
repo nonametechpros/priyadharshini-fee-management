@@ -74,41 +74,28 @@ class DashboardService {
       ..sort((a, b) => a.month.compareTo(b.month));
   }
 
-  Set<CourseType> _courseTypesOf(Map<String, dynamic> data) {
-    final list = data['courseTypes'] as List<dynamic>?;
-    return list != null
-        ? list.map((c) => courseTypeFromString(c as String)).toSet()
-        : {courseTypeFromString(data['courseType'] as String? ?? 'twoWheeler')};
+  /// The first calendar month (normalized to the 1st) that has any recorded
+  /// payment, or `null` if no payments have been recorded yet. Anchors the
+  /// Reports page's paginated "Monthly Fee Summary" view so it starts from
+  /// real data instead of an arbitrary rolling window.
+  Future<DateTime?> fetchEarliestPaymentMonth() async {
+    final snap = await _fees.orderBy('paymentDate').limit(1).get();
+    if (snap.docs.isEmpty) return null;
+    final date = (snap.docs.first.data()['paymentDate'] as Timestamp?)?.toDate();
+    if (date == null) return null;
+    return DateTime(date.year, date.month, 1);
   }
 
-  /// Per-month, per-course collected vs. pending for the Reports page's
-  /// "Monthly Fee Summary" table. Pending for a month is the outstanding
-  /// balance of students whose joining date falls in that month (there's no
-  /// separate due-date field in the schema). A payment isn't tied to a
-  /// specific course, so it's attributed to all of the paying student's
-  /// course types — the same convention [_breakdownFor] already uses for
-  /// multi-course students.
-  Future<List<MonthlyFeeSummary>> fetchMonthlyFeeSummary({int months = 6}) async {
-    final now = DateTime.now();
-    final start = DateTime(now.year, now.month - (months - 1), 1);
+  /// Total collected vs. pending per month for the Reports page's "Monthly
+  /// Fee Summary" table, covering [months] months starting at [start].
+  /// Pending for a month is the outstanding balance of students whose
+  /// joining date falls in that month (there's no separate due-date field
+  /// in the schema).
+  Future<List<MonthlyFeeSummary>> fetchMonthlyFeeSummary({required DateTime start, int months = 6}) async {
     final monthKeys = [for (var i = 0; i < months; i++) DateTime(start.year, start.month + i, 1)];
 
-    Map<DateTime, Map<CourseType, double>> emptyTotals() => {
-          for (final m in monthKeys) m: {for (final c in selectableCourseTypes) c: 0},
-        };
-
-    final collectedTotals = emptyTotals();
+    final collectedTotals = {for (final m in monthKeys) m: 0.0};
     final feesSnap = await _fees.where('paymentDate', isGreaterThanOrEqualTo: Timestamp.fromDate(start)).get();
-    final studentIds = <String>{};
-    for (final doc in feesSnap.docs) {
-      final id = doc.data()['studentId'] as String?;
-      if (id != null && id.isNotEmpty) studentIds.add(id);
-    }
-    final studentCourseTypes = <String, Set<CourseType>>{};
-    for (final id in studentIds) {
-      final doc = await _students.doc(id).get();
-      if (doc.exists) studentCourseTypes[id] = _courseTypesOf(doc.data()!);
-    }
     for (final doc in feesSnap.docs) {
       final data = doc.data();
       final date = (data['paymentDate'] as Timestamp?)?.toDate();
@@ -116,14 +103,10 @@ class DashboardService {
       final key = DateTime(date.year, date.month, 1);
       if (!collectedTotals.containsKey(key)) continue;
       final amount = (data['amount'] as num?)?.toDouble() ?? 0;
-      final courses = studentCourseTypes[data['studentId'] as String? ?? ''] ?? {};
-      for (final c in courses) {
-        if (!selectableCourseTypes.contains(c)) continue;
-        collectedTotals[key]!.update(c, (v) => v + amount);
-      }
+      collectedTotals.update(key, (v) => v + amount);
     }
 
-    final pendingTotals = emptyTotals();
+    final pendingTotals = {for (final m in monthKeys) m: 0.0};
     final studentsSnap = await _students.where('joiningDate', isGreaterThanOrEqualTo: Timestamp.fromDate(start)).get();
     for (final doc in studentsSnap.docs) {
       final data = doc.data();
@@ -133,17 +116,11 @@ class DashboardService {
       if (!pendingTotals.containsKey(key)) continue;
       final total = (data['totalAmount'] as num?)?.toDouble() ?? 0;
       final paid = (data['amountPaid'] as num?)?.toDouble() ?? 0;
-      final pending = (total - paid).clamp(0, double.infinity);
-      for (final c in _courseTypesOf(data)) {
-        if (!selectableCourseTypes.contains(c)) continue;
-        pendingTotals[key]!.update(c, (v) => v + pending);
-      }
+      pendingTotals.update(key, (v) => v + (total - paid).clamp(0, double.infinity));
     }
 
     return [
-      for (final m in monthKeys)
-        for (final c in selectableCourseTypes)
-          MonthlyFeeSummary(month: m, course: c, collected: collectedTotals[m]![c] ?? 0, pending: pendingTotals[m]![c] ?? 0),
+      for (final m in monthKeys) MonthlyFeeSummary(month: m, collected: collectedTotals[m] ?? 0, pending: pendingTotals[m] ?? 0),
     ];
   }
 }

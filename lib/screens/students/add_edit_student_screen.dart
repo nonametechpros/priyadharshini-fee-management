@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/course_type.dart';
 import '../../models/student.dart';
 import '../../providers/auth_providers.dart';
+import '../../providers/dashboard_providers.dart';
 import '../../providers/service_providers.dart';
 import '../../utils/formatters.dart';
 
@@ -118,6 +119,8 @@ class _AddEditStudentScreenState extends ConsumerState<AddEditStudentScreen> {
         await service.updateStudent(student, performedByUid: appUser.uid, performedByName: appUser.name);
       }
 
+      ref.invalidate(dashboardSummaryProvider);
+      ref.invalidate(monthlyFeeSummaryProvider);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       setState(() => _errorText = 'Could not save student. Please try again.');

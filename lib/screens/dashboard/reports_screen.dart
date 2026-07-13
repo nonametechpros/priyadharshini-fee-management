@@ -18,6 +18,9 @@ class ReportsScreen extends ConsumerWidget {
     final monthlyFeeAsync = ref.watch(monthlyFeeSummaryProvider);
     final activityAsync = ref.watch(recentActivityProvider);
     final studentNames = ref.watch(activityLogStudentNamesProvider).valueOrNull ?? const {};
+    final selectedYear = ref.watch(selectedReportYearProvider);
+    final page = ref.watch(reportsPageProvider);
+    final hasNextPageAsync = ref.watch(reportsHasNextPageProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Reports')),
@@ -31,9 +34,27 @@ class ReportsScreen extends ConsumerWidget {
             data: (context, summary) => _BreakdownTable(summary: summary),
           ),
           const SizedBox(height: 28),
-          Row(
+          Text('Monthly Fee Summary', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 4),
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 4,
+            runSpacing: 4,
             children: [
-              Expanded(child: Text('Monthly Fee Summary', style: Theme.of(context).textTheme.titleMedium)),
+              TextButton.icon(
+                icon: const Icon(Icons.calendar_month_outlined, size: 18),
+                label: Text(selectedYear == null ? 'Select year' : '$selectedYear'),
+                onPressed: () async {
+                  final picked = await _pickYear(context, initial: selectedYear);
+                  if (picked != null) ref.read(selectedReportYearProvider.notifier).state = picked;
+                },
+              ),
+              if (selectedYear != null)
+                IconButton(
+                  tooltip: 'Clear year filter',
+                  icon: const Icon(Icons.close, size: 18),
+                  onPressed: () => ref.read(selectedReportYearProvider.notifier).state = null,
+                ),
               TextButton.icon(
                 icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
                 label: const Text('Export to PDF'),
@@ -48,6 +69,25 @@ class ReportsScreen extends ConsumerWidget {
             value: monthlyFeeAsync,
             data: (context, months) => _MonthlyFeeSummaryTable(months: months),
           ),
+          if (selectedYear == null) ...[
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  tooltip: 'Older 6 months',
+                  icon: const Icon(Icons.chevron_left),
+                  onPressed: page > 0 ? () => ref.read(reportsPageProvider.notifier).state = page - 1 : null,
+                ),
+                IconButton(
+                  tooltip: 'Newer 6 months',
+                  icon: const Icon(Icons.chevron_right),
+                  onPressed:
+                      hasNextPageAsync.valueOrNull == true ? () => ref.read(reportsPageProvider.notifier).state = page + 1 : null,
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 28),
           Text('Recent Activity', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 12),
@@ -96,16 +136,14 @@ class _MonthlyFeeSummaryTable extends StatelessWidget {
         child: Table(
           columnWidths: const {
             0: FlexColumnWidth(1.2),
-            1: FlexColumnWidth(1),
+            1: FlexColumnWidth(1.4),
             2: FlexColumnWidth(1.4),
-            3: FlexColumnWidth(1.4),
           },
           children: [
             TableRow(
               decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Theme.of(context).dividerColor))),
               children: [
                 _cell(context, 'Month', isHeader: true),
-                _cell(context, 'Course', isHeader: true),
                 _cell(context, 'Collected', isHeader: true),
                 _cell(context, 'Pending', isHeader: true),
               ],
@@ -114,7 +152,6 @@ class _MonthlyFeeSummaryTable extends StatelessWidget {
               (m) => TableRow(
                 children: [
                   _cell(context, DateFormat('MMM yyyy').format(m.month)),
-                  _cell(context, m.course.label),
                   _cell(context, formatCurrency(m.collected)),
                   _cell(context, formatCurrency(m.pending)),
                 ],
@@ -137,6 +174,32 @@ class _MonthlyFeeSummaryTable extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<int?> _pickYear(BuildContext context, {int? initial}) {
+  final now = DateTime.now();
+  var year = initial ?? now.year;
+
+  return showDialog<int>(
+    context: context,
+    builder: (context) => StatefulBuilder(
+      builder: (context, setState) => AlertDialog(
+        title: const Text('Select year'),
+        content: DropdownButtonFormField<int>(
+          value: year,
+          decoration: const InputDecoration(labelText: 'Year'),
+          items: [
+            for (var y = now.year; y >= now.year - 10; y--) DropdownMenuItem(value: y, child: Text('$y')),
+          ],
+          onChanged: (v) => setState(() => year = v!),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.of(context).pop(year), child: const Text('Apply')),
+        ],
+      ),
+    ),
+  );
 }
 
 class _BreakdownTable extends StatelessWidget {
