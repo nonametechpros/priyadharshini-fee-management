@@ -54,12 +54,23 @@ class _AddEditStudentScreenState extends ConsumerState<AddEditStudentScreen> {
     super.dispose();
   }
 
-  Future<void> _pickDate({required DateTime initial, required ValueChanged<DateTime> onPicked}) async {
+  /// The most recent date of birth that still makes a student 18 today.
+  DateTime get _maxDateOfBirth {
+    final now = DateTime.now();
+    return DateTime(now.year - 18, now.month, now.day);
+  }
+
+  Future<void> _pickDate({
+    required DateTime initial,
+    required ValueChanged<DateTime> onPicked,
+    DateTime? firstDate,
+    DateTime? lastDate,
+  }) async {
     final picked = await showDatePicker(
       context: context,
       initialDate: initial,
-      firstDate: DateTime(1900),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      firstDate: firstDate ?? DateTime(1900),
+      lastDate: lastDate ?? DateTime.now().add(const Duration(days: 365)),
     );
     if (picked != null) onPicked(picked);
   }
@@ -68,6 +79,10 @@ class _AddEditStudentScreenState extends ConsumerState<AddEditStudentScreen> {
     if (!_formKey.currentState!.validate()) return;
     if (_courseTypes.isEmpty) {
       setState(() => _errorText = 'Select at least one course type.');
+      return;
+    }
+    if (_dateOfBirth.isAfter(_maxDateOfBirth)) {
+      setState(() => _errorText = 'Student must be at least 18 years old.');
       return;
     }
     final appUser = ref.read(currentAppUserProvider).valueOrNull;
@@ -164,7 +179,11 @@ class _AddEditStudentScreenState extends ConsumerState<AddEditStudentScreen> {
               _DateField(
                 label: 'Date of birth',
                 date: _dateOfBirth,
-                onTap: () => _pickDate(initial: _dateOfBirth, onPicked: (d) => setState(() => _dateOfBirth = d)),
+                onTap: () => _pickDate(
+                  initial: _dateOfBirth.isAfter(_maxDateOfBirth) ? _maxDateOfBirth : _dateOfBirth,
+                  lastDate: _maxDateOfBirth,
+                  onPicked: (d) => setState(() => _dateOfBirth = d),
+                ),
               ),
               const SizedBox(height: 14),
               _DateField(
