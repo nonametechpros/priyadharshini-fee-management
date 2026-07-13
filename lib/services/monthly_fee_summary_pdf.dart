@@ -10,6 +10,8 @@ final _pdfCurrencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: 'Rs. '
 
 Future<void> exportMonthlyFeeSummaryPdf(List<MonthlyFeeSummary> months) async {
   final doc = pw.Document();
+  final totalCollected = months.fold<double>(0, (sum, m) => sum + m.collected);
+  final totalPending = months.fold<double>(0, (sum, m) => sum + m.pending);
 
   doc.addPage(
     pw.Page(
@@ -35,6 +37,17 @@ Future<void> exportMonthlyFeeSummaryPdf(List<MonthlyFeeSummary> months) async {
             headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
             cellAlignment: pw.Alignment.centerLeft,
             cellPadding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          ),
+          pw.Divider(height: 20),
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.end,
+            children: [
+              pw.Text('Total Collected: ', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+              pw.Text(_pdfCurrencyFormat.format(totalCollected)),
+              pw.SizedBox(width: 24),
+              pw.Text('Total Pending: ', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+              pw.Text(_pdfCurrencyFormat.format(totalPending)),
+            ],
           ),
         ],
       ),

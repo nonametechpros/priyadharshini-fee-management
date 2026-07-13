@@ -19,8 +19,7 @@ class ReportsScreen extends ConsumerWidget {
     final activityAsync = ref.watch(recentActivityProvider);
     final studentNames = ref.watch(activityLogStudentNamesProvider).valueOrNull ?? const {};
     final selectedYear = ref.watch(selectedReportYearProvider);
-    final page = ref.watch(reportsPageProvider);
-    final hasNextPageAsync = ref.watch(reportsHasNextPageProvider);
+    final yearBoundsAsync = ref.watch(reportsYearBoundsProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Reports')),
@@ -41,20 +40,28 @@ class ReportsScreen extends ConsumerWidget {
             spacing: 4,
             runSpacing: 4,
             children: [
+              IconButton(
+                tooltip: 'Previous year',
+                icon: const Icon(Icons.chevron_left),
+                onPressed: (yearBoundsAsync.valueOrNull != null && selectedYear > yearBoundsAsync.valueOrNull!.minYear)
+                    ? () => ref.read(selectedReportYearProvider.notifier).state = selectedYear - 1
+                    : null,
+              ),
               TextButton.icon(
                 icon: const Icon(Icons.calendar_month_outlined, size: 18),
-                label: Text(selectedYear == null ? 'Select year' : '$selectedYear'),
+                label: Text('$selectedYear'),
                 onPressed: () async {
                   final picked = await _pickYear(context, initial: selectedYear);
                   if (picked != null) ref.read(selectedReportYearProvider.notifier).state = picked;
                 },
               ),
-              if (selectedYear != null)
-                IconButton(
-                  tooltip: 'Clear year filter',
-                  icon: const Icon(Icons.close, size: 18),
-                  onPressed: () => ref.read(selectedReportYearProvider.notifier).state = null,
-                ),
+              IconButton(
+                tooltip: 'Next year',
+                icon: const Icon(Icons.chevron_right),
+                onPressed: (yearBoundsAsync.valueOrNull != null && selectedYear < yearBoundsAsync.valueOrNull!.maxYear)
+                    ? () => ref.read(selectedReportYearProvider.notifier).state = selectedYear + 1
+                    : null,
+              ),
               TextButton.icon(
                 icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
                 label: const Text('Export to PDF'),
@@ -69,25 +76,6 @@ class ReportsScreen extends ConsumerWidget {
             value: monthlyFeeAsync,
             data: (context, months) => _MonthlyFeeSummaryTable(months: months),
           ),
-          if (selectedYear == null) ...[
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(
-                  tooltip: 'Older 6 months',
-                  icon: const Icon(Icons.chevron_left),
-                  onPressed: page > 0 ? () => ref.read(reportsPageProvider.notifier).state = page - 1 : null,
-                ),
-                IconButton(
-                  tooltip: 'Newer 6 months',
-                  icon: const Icon(Icons.chevron_right),
-                  onPressed:
-                      hasNextPageAsync.valueOrNull == true ? () => ref.read(reportsPageProvider.notifier).state = page + 1 : null,
-                ),
-              ],
-            ),
-          ],
           const SizedBox(height: 28),
           Text('Recent Activity', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 12),
