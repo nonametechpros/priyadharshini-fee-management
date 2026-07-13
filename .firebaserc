@@ -1,0 +1,13 @@
+{
+  "projects": {},
+  "targets": {
+    "priyadharshini-fee-management": {
+      "hosting": {
+        "priyadarsiniApp": [
+          "priyadarsini-app"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

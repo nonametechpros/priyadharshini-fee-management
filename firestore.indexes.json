@@ -1,0 +1,73 @@
+{
+  "indexes": [
+    { "collectionGroup": "students", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "addedBy", "order": "ASCENDING" },
+      { "fieldPath": "createdAt", "order": "DESCENDING" }
+    ]},
+    { "collectionGroup": "students", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "courseTypes", "arrayConfig": "CONTAINS" },
+      { "fieldPath": "createdAt", "order": "DESCENDING" }
+    ]},
+    { "collectionGroup": "students", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "feeStatus", "order": "ASCENDING" },
+      { "fieldPath": "createdAt", "order": "DESCENDING" }
+    ]},
+    { "collectionGroup": "students", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "addedBy", "order": "ASCENDING" },
+      { "fieldPath": "courseTypes", "arrayConfig": "CONTAINS" },
+      { "fieldPath": "createdAt", "order": "DESCENDING" }
+    ]},
+    { "collectionGroup": "students", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "addedBy", "order": "ASCENDING" },
+      { "fieldPath": "feeStatus", "order": "ASCENDING" },
+      { "fieldPath": "createdAt", "order": "DESCENDING" }
+    ]},
+    { "collectionGroup": "students", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "courseTypes", "arrayConfig": "CONTAINS" },
+      { "fieldPath": "feeStatus", "order": "ASCENDING" },
+      { "fieldPath": "createdAt", "order": "DESCENDING" }
+    ]},
+    { "collectionGroup": "students", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "addedBy", "order": "ASCENDING" },
+      { "fieldPath": "fullNameLower", "order": "ASCENDING" }
+    ]},
+    { "collectionGroup": "students", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "courseTypes", "arrayConfig": "CONTAINS" },
+      { "fieldPath": "fullNameLower", "order": "ASCENDING" }
+    ]},
+    { "collectionGroup": "students", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "feeStatus", "order": "ASCENDING" },
+      { "fieldPath": "fullNameLower", "order": "ASCENDING" }
+    ]},
+    { "collectionGroup": "students", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "addedBy", "order": "ASCENDING" },
+      { "fieldPath": "joiningDate", "order": "ASCENDING" }
+    ]},
+    { "collectionGroup": "students", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "courseTypes", "arrayConfig": "CONTAINS" },
+      { "fieldPath": "joiningDate", "order": "ASCENDING" }
+    ]},
+    { "collectionGroup": "students", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "feeStatus", "order": "ASCENDING" },
+      { "fieldPath": "joiningDate", "order": "ASCENDING" }
+    ]},
+    { "collectionGroup": "students", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "amountPaid", "order": "ASCENDING" },
+      { "fieldPath": "totalAmount", "order": "ASCENDING" }
+    ]},
+    { "collectionGroup": "students", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "courseTypes", "arrayConfig": "CONTAINS" },
+      { "fieldPath": "amountPaid", "order": "ASCENDING" },
+      { "fieldPath": "totalAmount", "order": "ASCENDING" }
+    ]},
+    { "collectionGroup": "fees", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "studentId", "order": "ASCENDING" },
+      { "fieldPath": "paymentDate", "order": "DESCENDING" }
+    ]},
+    { "collectionGroup": "users", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "role", "order": "ASCENDING" },
+      { "fieldPath": "createdAt", "order": "DESCENDING" }
+    ]}
+  ],
+  "fieldOverrides": []
+}

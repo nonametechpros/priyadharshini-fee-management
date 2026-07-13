@@ -1,0 +1,34 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "priyadharshini-fee-management",
+          "appId": "1:227046320818:android:7677472e9c5ce19d1f37ab",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "priyadharshini-fee-management",
+          "configurations": {
+            "android": "1:227046320818:android:7677472e9c5ce19d1f37ab",
+            "web": "1:227046320818:web:9d8c0b33b11bb3e71f37ab"
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "hosting": {
+    "target": "priyadarsiniApp",
+    "public": "build/web",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [
+      { "source": "**", "destination": "/index.html" }
+    ]
+  }
+}

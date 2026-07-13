@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "227046320818",
+    "project_id": "priyadharshini-fee-management",
+    "storage_bucket": "priyadharshini-fee-management.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:227046320818:android:7677472e9c5ce19d1f37ab",
+        "android_client_info": {
+          "package_name": "com.priyadarsini.priyadarsini_fee_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC4-5ZZvhXvuvLigwM6uSQmV-VOX6dxAeQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
