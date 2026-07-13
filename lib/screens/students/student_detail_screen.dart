@@ -50,17 +50,27 @@ class _StudentDetailBody extends ConsumerWidget {
       ),
     );
     if (confirmed != true) return;
+    if (!context.mounted) return;
 
     final appUser = ref.read(currentAppUserProvider).valueOrNull;
     if (appUser == null) return;
-    await ref.read(studentServiceProvider).deleteStudent(
-          student.id,
-          student.fullName,
-          performedByUid: appUser.uid,
-          performedByName: appUser.name,
-        );
-    ref.read(studentListControllerProvider.notifier).refresh();
-    if (context.mounted) Navigator.of(context).pop();
+
+    final service = ref.read(studentServiceProvider);
+    final listNotifier = ref.read(studentListControllerProvider.notifier);
+
+    // Update the list and leave this screen before awaiting the delete:
+    // once the document is gone, this screen's live watchStudent stream
+    // errors on the missing doc and tears this widget down, which would
+    // otherwise dispose `ref` before the steps below could run.
+    listNotifier.removeStudent(student.id);
+    Navigator.of(context).pop();
+
+    await service.deleteStudent(
+      student.id,
+      student.fullName,
+      performedByUid: appUser.uid,
+      performedByName: appUser.name,
+    );
   }
 
   @override

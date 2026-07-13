@@ -62,6 +62,14 @@ class StudentListController extends AutoDisposeAsyncNotifier<StudentListState> {
     ));
   }
 
+  void removeStudent(String studentId) {
+    final current = state.valueOrNull;
+    if (current == null) return;
+    state = AsyncData(current.copyWith(
+      items: current.items.where((s) => s.id != studentId).toList(),
+    ));
+  }
+
   Future<void> refresh() async {
     final filter = ref.read(studentFilterProvider);
     state = const AsyncLoading<StudentListState>().copyWithPrevious(state);
