@@ -50,7 +50,7 @@ class ProfileScreen extends ConsumerWidget {
               OutlinedButton.icon(
                 icon: const Icon(Icons.logout),
                 label: const Text('Sign Out'),
-                onPressed: () => ref.read(authServiceProvider).signOut(),
+                onPressed: () => _confirmSignOut(context, ref),
               ),
             ],
           );
@@ -58,6 +58,22 @@ class ProfileScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+Future<void> _confirmSignOut(BuildContext context, WidgetRef ref) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: const Text('Sign out?'),
+      content: const Text('You will need to sign in again to access your account.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Sign Out')),
+      ],
+    ),
+  );
+  if (confirmed != true) return;
+  await ref.read(authServiceProvider).signOut();
 }
 
 class _ChangePasswordForm extends ConsumerStatefulWidget {
