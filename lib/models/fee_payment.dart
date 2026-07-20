@@ -68,6 +68,20 @@ class FeePayment {
     );
   }
 
+  FeePayment copyWith({String? studentName}) {
+    return FeePayment(
+      id: id,
+      studentId: studentId,
+      studentName: studentName ?? this.studentName,
+      amount: amount,
+      paymentDate: paymentDate,
+      mode: mode,
+      recordedBy: recordedBy,
+      recordedByName: recordedByName,
+      createdAt: createdAt,
+    );
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'studentId': studentId,

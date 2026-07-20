@@ -16,14 +16,24 @@ final recentPaymentsProvider = StreamProvider.autoDispose<List<FeePayment>>((ref
   return ref.watch(feeServiceProvider).watchRecentPayments(limit: 5);
 });
 
-/// Fallback names for legacy payments in [recentPaymentsProvider] that predate
-/// the `studentName` field on [FeePayment] (new payments carry their own name
-/// and never need this live lookup).
-final recentPaymentsStudentNamesProvider = FutureProvider.autoDispose<Map<String, String>>((ref) async {
-  final payments = await ref.watch(recentPaymentsProvider.future);
+/// Backfills the student name for any legacy payment in [payments] that
+/// predates the `studentName` field on [FeePayment] (new payments carry
+/// their own name and never need this lookup).
+Future<List<FeePayment>> _withStudentNames(Ref ref, List<FeePayment> payments) async {
   final ids = payments.where((p) => p.studentName == null).map((p) => p.studentId).toSet();
-  if (ids.isEmpty) return {};
-  return ref.watch(studentServiceProvider).fetchNamesById(ids);
+  if (ids.isEmpty) return payments;
+  final names = await ref.read(studentServiceProvider).fetchNamesById(ids);
+  return [for (final p in payments) p.studentName != null ? p : p.copyWith(studentName: names[p.studentId])];
+}
+
+/// [recentPaymentsProvider]'s payments with every name already resolved, so
+/// the dashboard has one thing to await and never renders a payment before
+/// its name is known — resolving names as a second, separately-timed
+/// provider let the UI briefly show a stale/incomplete names map (and thus
+/// "Unknown student") whenever the payments list changed underneath it.
+final recentPaymentsWithNamesProvider = FutureProvider.autoDispose<List<FeePayment>>((ref) async {
+  final payments = await ref.watch(recentPaymentsProvider.future);
+  return _withStudentNames(ref, payments);
 });
 
 final paymentFilterProvider = StateProvider.autoDispose<PaymentFilter>((ref) => const PaymentFilter());
@@ -63,9 +73,15 @@ class PaymentListController extends AutoDisposeAsyncNotifier<PaymentListState> {
   FutureOr<PaymentListState> build() async {
     final filter = ref.watch(paymentFilterProvider);
     final result = await ref.watch(feeServiceProvider).fetchPaymentsPage(filter: filter);
-    return PaymentListState(items: result.items, lastDocument: result.lastDocument, hasMore: result.hasMore);
+    final items = await _withStudentNames(ref, result.items);
+    return PaymentListState(items: items, lastDocument: result.lastDocument, hasMore: result.hasMore);
   }
 
+  // Every state update below resolves names before publishing the new
+  // state, rather than letting the UI watch a second, separately-timed
+  // names provider — that pattern let a page of freshly-loaded payments
+  // render against a stale names map (and thus "Unknown student") for a
+  // moment after each scroll-triggered `loadMore()`.
   Future<void> loadMore() async {
     final current = state.valueOrNull;
     if (current == null || !current.hasMore || current.isLoadingMore) return;
@@ -76,9 +92,10 @@ class PaymentListController extends AutoDisposeAsyncNotifier<PaymentListState> {
           filter: filter,
           startAfter: current.lastDocument,
         );
+    final newItems = await _withStudentNames(ref, result.items);
 
     state = AsyncData(PaymentListState(
-      items: [...current.items, ...result.items],
+      items: [...current.items, ...newItems],
       lastDocument: result.lastDocument,
       hasMore: result.hasMore,
     ));
@@ -89,19 +106,11 @@ class PaymentListController extends AutoDisposeAsyncNotifier<PaymentListState> {
     state = const AsyncLoading<PaymentListState>().copyWithPrevious(state);
     state = await AsyncValue.guard(() async {
       final result = await ref.read(feeServiceProvider).fetchPaymentsPage(filter: filter);
-      return PaymentListState(items: result.items, lastDocument: result.lastDocument, hasMore: result.hasMore);
+      final items = await _withStudentNames(ref, result.items);
+      return PaymentListState(items: items, lastDocument: result.lastDocument, hasMore: result.hasMore);
     });
   }
 }
 
 final paymentListControllerProvider =
     AsyncNotifierProvider.autoDispose<PaymentListController, PaymentListState>(PaymentListController.new);
-
-/// Fallback names for legacy payments in [paymentListControllerProvider] that
-/// predate the `studentName` field on [FeePayment].
-final paymentListStudentNamesProvider = FutureProvider.autoDispose<Map<String, String>>((ref) async {
-  final state = await ref.watch(paymentListControllerProvider.future);
-  final ids = state.items.where((p) => p.studentName == null).map((p) => p.studentId).toSet();
-  if (ids.isEmpty) return {};
-  return ref.watch(studentServiceProvider).fetchNamesById(ids);
-});

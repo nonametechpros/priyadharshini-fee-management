@@ -277,8 +277,11 @@ class _RecentPayments extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final paymentsAsync = ref.watch(recentPaymentsProvider);
-    final namesAsync = ref.watch(recentPaymentsStudentNamesProvider);
+    // Payments and their names resolve as one unit (see
+    // recentPaymentsWithNamesProvider), so this never renders a tile before
+    // its name is known — no separate, differently-timed names lookup to
+    // race against.
+    final paymentsAsync = ref.watch(recentPaymentsWithNamesProvider);
 
     return AsyncValueView(
       value: paymentsAsync,
@@ -289,27 +292,8 @@ class _RecentPayments extends ConsumerWidget {
             child: Text('No payments recorded yet.'),
           );
         }
-        // Most payments carry their own studentName now; only wait on the
-        // fallback lookup for legacy rows that predate that field, so tiles
-        // never flash "Unknown student" while it resolves.
-        if (payments.every((p) => p.studentName != null)) {
-          return Column(
-            children: payments.map((p) => PaymentTile(payment: p, studentName: p.studentName)).toList(),
-          );
-        }
-        return namesAsync.when(
-          data: (studentNames) => Column(
-            children: payments
-                .map((p) => PaymentTile(payment: p, studentName: p.studentName ?? studentNames[p.studentId]))
-                .toList(),
-          ),
-          loading: () => const Padding(
-            padding: EdgeInsets.symmetric(vertical: 24),
-            child: Center(child: CircularProgressIndicator()),
-          ),
-          error: (_, __) => Column(
-            children: payments.map((p) => PaymentTile(payment: p, studentName: p.studentName)).toList(),
-          ),
+        return Column(
+          children: payments.map((p) => PaymentTile(payment: p, studentName: p.studentName)).toList(),
         );
       },
     );

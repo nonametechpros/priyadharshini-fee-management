@@ -39,8 +39,10 @@ class _AllPaymentsScreenState extends ConsumerState<AllPaymentsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Each page's payments arrive with names already resolved (see
+    // PaymentListController), so there's no separate names lookup to wait
+    // on or race against here.
     final listState = ref.watch(paymentListControllerProvider);
-    final namesAsync = ref.watch(paymentListStudentNamesProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('All Payments')),
@@ -58,14 +60,6 @@ class _AllPaymentsScreenState extends ConsumerState<AllPaymentsScreen> {
                   if (state.items.isEmpty) {
                     return const Center(child: Text('No payments found.'));
                   }
-                  // Most payments carry their own studentName now; only wait on the
-                  // fallback lookup for legacy rows that predate that field.
-                  final needsLookup = state.items.any((p) => p.studentName == null);
-                  final studentNames = namesAsync.valueOrNull;
-                  if (needsLookup && studentNames == null && namesAsync.isLoading) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  final names = studentNames ?? const {};
                   return RefreshIndicator(
                     onRefresh: () => ref.read(paymentListControllerProvider.notifier).refresh(),
                     child: ListView.separated(
@@ -88,7 +82,7 @@ class _AllPaymentsScreenState extends ConsumerState<AllPaymentsScreen> {
                           );
                         }
                         final payment = state.items[index];
-                        return PaymentTile(payment: payment, studentName: payment.studentName ?? names[payment.studentId]);
+                        return PaymentTile(payment: payment, studentName: payment.studentName);
                       },
                     ),
                   );
