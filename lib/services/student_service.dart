@@ -4,7 +4,21 @@ import 'activity_log_service.dart';
 import 'paged_result.dart';
 import 'student_filter.dart';
 
-const int defaultPageSize = 15;
+const int defaultPageSize = 20;
+
+/// What deleting a student would take with it, shown in the confirmation
+/// dialog before [StudentService.deleteStudent] actually cascades.
+class StudentDeletionImpact {
+  final int paymentCount;
+  final double totalPaymentAmount;
+  final int activityLogCount;
+
+  const StudentDeletionImpact({
+    required this.paymentCount,
+    required this.totalPaymentAmount,
+    required this.activityLogCount,
+  });
+}
 
 class StudentService {
   StudentService({FirebaseFirestore? firestore, ActivityLogService? activityLogService})
@@ -80,12 +94,19 @@ class StudentService {
   }
 
   /// Resolves a handful of student IDs to display names, e.g. for repairing
-  /// legacy activity-log text at render time.
+  /// legacy activity-log text at render time. Batches lookups via
+  /// `whereIn` (max 30 IDs per query) instead of one round-trip per ID.
   Future<Map<String, String>> fetchNamesById(Iterable<String> ids) async {
+    final idList = ids.toSet().toList();
+    if (idList.isEmpty) return {};
+
     final result = <String, String>{};
-    for (final id in ids) {
-      final doc = await _students.doc(id).get();
-      if (doc.exists) result[id] = Student.fromDoc(doc).fullName;
+    for (var i = 0; i < idList.length; i += 30) {
+      final chunk = idList.sublist(i, i + 30 > idList.length ? idList.length : i + 30);
+      final snapshot = await _students.where(FieldPath.documentId, whereIn: chunk).get();
+      for (final doc in snapshot.docs) {
+        result[doc.id] = Student.fromDoc(doc).fullName;
+      }
     }
     return result;
   }
@@ -115,16 +136,74 @@ class StudentService {
     );
   }
 
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _feesFor(String studentId) async {
+    final snapshot = await _firestore.collection('fees').where('studentId', isEqualTo: studentId).get();
+    return snapshot.docs;
+  }
+
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _activityLogsFor(
+    String studentId,
+    List<String> feeIds,
+  ) async {
+    final logs = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+    final studentLogs = await _firestore
+        .collection('activityLogs')
+        .where('entity', isEqualTo: 'student')
+        .where('entityId', isEqualTo: studentId)
+        .get();
+    logs.addAll(studentLogs.docs);
+
+    for (var i = 0; i < feeIds.length; i += 30) {
+      final chunk = feeIds.sublist(i, i + 30 > feeIds.length ? feeIds.length : i + 30);
+      if (chunk.isEmpty) continue;
+      final feeLogs = await _firestore
+          .collection('activityLogs')
+          .where('entity', isEqualTo: 'fee')
+          .where('entityId', whereIn: chunk)
+          .get();
+      logs.addAll(feeLogs.docs);
+    }
+    return logs;
+  }
+
+  /// Previews what [deleteStudent] would take with it, for the confirmation
+  /// dialog shown before the (irreversible) cascade delete runs.
+  Future<StudentDeletionImpact> previewDeletionImpact(String studentId) async {
+    final fees = await _feesFor(studentId);
+    final logs = await _activityLogsFor(studentId, fees.map((d) => d.id).toList());
+    final total = fees.fold<double>(0, (acc, d) => acc + ((d.data()['amount'] as num?)?.toDouble() ?? 0));
+    return StudentDeletionImpact(paymentCount: fees.length, totalPaymentAmount: total, activityLogCount: logs.length);
+  }
+
+  /// Deletes a student along with every fee/payment record and activity-log
+  /// entry tied to them, so no orphaned "Unknown student" payments are left
+  /// behind. Irreversible; callers must confirm with [previewDeletionImpact]
+  /// first. Fees/logs are deleted before the student document itself, since
+  /// the security rules re-verify student ownership while it still exists.
   Future<void> deleteStudent(String studentId, String studentName,
       {required String performedByUid, required String performedByName}) async {
-    await _students.doc(studentId).delete();
+    final fees = await _feesFor(studentId);
+    final feeIds = fees.map((d) => d.id).toList();
+    final logs = await _activityLogsFor(studentId, feeIds);
+
+    final batch = _firestore.batch();
+    for (final doc in fees) {
+      batch.delete(doc.reference);
+    }
+    for (final doc in logs) {
+      batch.delete(doc.reference);
+    }
+    batch.delete(_students.doc(studentId));
+    await batch.commit();
+
     await _activityLogService.log(
       action: 'student_deleted',
       entity: 'student',
       entityId: studentId,
       performedBy: performedByUid,
       performedByName: performedByName,
-      details: 'Deleted student $studentName',
+      details:
+          'Deleted student $studentName (also removed ${fees.length} payment(s) and ${logs.length} activity log entr${logs.length == 1 ? 'y' : 'ies'})',
     );
   }
 }

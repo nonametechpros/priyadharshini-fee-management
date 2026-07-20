@@ -7,6 +7,7 @@ import '../../providers/dashboard_providers.dart';
 import '../../providers/fee_providers.dart';
 import '../../providers/service_providers.dart';
 import '../../providers/student_providers.dart';
+import '../../services/student_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/async_value_view.dart';
@@ -39,18 +40,35 @@ class _StudentDetailBody extends ConsumerWidget {
   final Student student;
 
   Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
+    final impact = await showDialog<StudentDeletionImpact>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Delete student?'),
-        content: Text('This will permanently remove ${student.fullName} and cannot be undone.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Delete')),
-        ],
+      builder: (_) => FutureBuilder<StudentDeletionImpact>(
+        future: ref.read(studentServiceProvider).previewDeletionImpact(student.id),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const AlertDialog(
+              content: SizedBox(height: 80, child: Center(child: CircularProgressIndicator())),
+            );
+          }
+          final impact = snapshot.data!;
+          return AlertDialog(
+            title: const Text('Delete student?'),
+            content: Text(
+              'This permanently removes ${student.fullName}, along with '
+              '${impact.paymentCount} payment${impact.paymentCount == 1 ? '' : 's'} '
+              '(${formatCurrency(impact.totalPaymentAmount)}) and '
+              '${impact.activityLogCount} activity log ${impact.activityLogCount == 1 ? 'entry' : 'entries'}. '
+              'This cannot be undone.',
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+              TextButton(onPressed: () => Navigator.of(context).pop(impact), child: const Text('Delete')),
+            ],
+          );
+        },
       ),
     );
-    if (confirmed != true) return;
+    if (impact == null) return;
     if (!context.mounted) return;
 
     final appUser = ref.read(currentAppUserProvider).valueOrNull;
@@ -65,7 +83,7 @@ class _StudentDetailBody extends ConsumerWidget {
     // otherwise dispose `ref` before the steps below could run.
     listNotifier.removeStudent(student.id);
     ref.invalidate(dashboardSummaryProvider);
-    ref.invalidate(monthlyFeeSummaryProvider);
+    ref.invalidate(feeSummaryProvider);
     Navigator.of(context).pop();
 
     await service.deleteStudent(
@@ -79,6 +97,10 @@ class _StudentDetailBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final paymentsAsync = ref.watch(paymentsForStudentProvider(student.id));
+    // Deleting now cascades to the student's fees/activity logs, which the
+    // security rules restrict to Admin (see firestore.rules), so the action
+    // is Admin-only here too rather than surfacing a permission error.
+    final isAdmin = ref.watch(currentAppUserProvider).valueOrNull?.isAdmin ?? false;
 
     return RefreshIndicator(
       onRefresh: () async {},
@@ -150,12 +172,14 @@ class _StudentDetailBody extends ConsumerWidget {
                   if (saved == true) ref.read(studentListControllerProvider.notifier).refresh();
                 },
               ),
-              const SizedBox(width: 10),
-              IconButton(
-                tooltip: 'Delete student',
-                icon: Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error),
-                onPressed: () => _confirmDelete(context, ref),
-              ),
+              if (isAdmin) ...[
+                const SizedBox(width: 10),
+                IconButton(
+                  tooltip: 'Delete student',
+                  icon: Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error),
+                  onPressed: () => _confirmDelete(context, ref),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 24),

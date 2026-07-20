@@ -6,13 +6,41 @@ import '../../utils/formatters.dart';
 import '../../widgets/async_value_view.dart';
 import '../../widgets/payment_tile.dart';
 
-class AllPaymentsScreen extends ConsumerWidget {
+class AllPaymentsScreen extends ConsumerStatefulWidget {
   const AllPaymentsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AllPaymentsScreen> createState() => _AllPaymentsScreenState();
+}
+
+class _AllPaymentsScreenState extends ConsumerState<AllPaymentsScreen> {
+  final _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    final state = ref.read(paymentListControllerProvider).valueOrNull;
+    if (state == null || !state.hasMore || state.isLoadingMore) return;
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+      ref.read(paymentListControllerProvider.notifier).loadMore();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final listState = ref.watch(paymentListControllerProvider);
-    final studentNames = ref.watch(paymentListStudentNamesProvider).valueOrNull ?? const {};
+    final namesAsync = ref.watch(paymentListStudentNamesProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('All Payments')),
@@ -30,29 +58,37 @@ class AllPaymentsScreen extends ConsumerWidget {
                   if (state.items.isEmpty) {
                     return const Center(child: Text('No payments found.'));
                   }
+                  // Most payments carry their own studentName now; only wait on the
+                  // fallback lookup for legacy rows that predate that field.
+                  final needsLookup = state.items.any((p) => p.studentName == null);
+                  final studentNames = namesAsync.valueOrNull;
+                  if (needsLookup && studentNames == null && namesAsync.isLoading) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  final names = studentNames ?? const {};
                   return RefreshIndicator(
                     onRefresh: () => ref.read(paymentListControllerProvider.notifier).refresh(),
                     child: ListView.separated(
+                      controller: _scrollController,
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                      itemCount: state.items.length + 1,
+                      itemCount: state.items.length + (state.hasMore ? 1 : 0),
                       separatorBuilder: (_, __) => const SizedBox(height: 8),
                       itemBuilder: (context, index) {
                         if (index == state.items.length) {
-                          if (!state.hasMore) return const SizedBox.shrink();
-                          return Center(
+                          // Reached while scrolling; _onScroll already triggers loadMore().
+                          return const Center(
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              child: state.isLoadingMore
-                                  ? const CircularProgressIndicator()
-                                  : OutlinedButton(
-                                      onPressed: () => ref.read(paymentListControllerProvider.notifier).loadMore(),
-                                      child: const Text('Load more'),
-                                    ),
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              child: SizedBox(
+                                height: 24,
+                                width: 24,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
                             ),
                           );
                         }
                         final payment = state.items[index];
-                        return PaymentTile(payment: payment, studentName: studentNames[payment.studentId]);
+                        return PaymentTile(payment: payment, studentName: payment.studentName ?? names[payment.studentId]);
                       },
                     ),
                   );

@@ -1,25 +1,40 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 import '../../models/course_type.dart';
 import '../../models/dashboard_summary.dart';
 import '../../providers/dashboard_providers.dart';
 import '../../services/activity_log_service.dart';
 import '../../services/monthly_fee_summary_pdf.dart';
+import '../../theme/app_theme.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/async_value_view.dart';
 
-class ReportsScreen extends ConsumerWidget {
+class ReportsScreen extends ConsumerStatefulWidget {
   const ReportsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ReportsScreen> createState() => _ReportsScreenState();
+}
+
+class _ReportsScreenState extends ConsumerState<ReportsScreen> {
+  bool _exporting = false;
+
+  Future<void> _export(FeeSummary summary) async {
+    setState(() => _exporting = true);
+    try {
+      await exportFeeSummaryPdf(summary);
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final summaryAsync = ref.watch(dashboardSummaryProvider);
-    final monthlyFeeAsync = ref.watch(monthlyFeeSummaryProvider);
+    final feeSummaryAsync = ref.watch(feeSummaryProvider);
     final activityAsync = ref.watch(recentActivityProvider);
     final studentNames = ref.watch(activityLogStudentNamesProvider).valueOrNull ?? const {};
-    final selectedYear = ref.watch(selectedReportYearProvider);
-    final yearBoundsAsync = ref.watch(reportsYearBoundsProvider);
+    final selectedRange = ref.watch(selectedFeeSummaryRangeProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Reports')),
@@ -33,48 +48,42 @@ class ReportsScreen extends ConsumerWidget {
             data: (context, summary) => _BreakdownTable(summary: summary),
           ),
           const SizedBox(height: 28),
-          Text('Monthly Fee Summary', style: Theme.of(context).textTheme.titleMedium),
+          Text('Fee Summary', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 4),
           Wrap(
             crossAxisAlignment: WrapCrossAlignment.center,
             spacing: 4,
             runSpacing: 4,
             children: [
-              IconButton(
-                tooltip: 'Previous year',
-                icon: const Icon(Icons.chevron_left),
-                onPressed: (yearBoundsAsync.valueOrNull != null && selectedYear > yearBoundsAsync.valueOrNull!.minYear)
-                    ? () => ref.read(selectedReportYearProvider.notifier).state = selectedYear - 1
-                    : null,
-              ),
-              TextButton.icon(
-                icon: const Icon(Icons.calendar_month_outlined, size: 18),
-                label: Text('$selectedYear'),
+              ActionChip(
+                avatar: const Icon(Icons.calendar_today_outlined, size: 16),
+                label: Text('${formatDate(selectedRange.start)} - ${formatDate(selectedRange.end)}'),
                 onPressed: () async {
-                  final picked = await _pickYear(context, initial: selectedYear);
-                  if (picked != null) ref.read(selectedReportYearProvider.notifier).state = picked;
+                  final picked = await showDateRangePicker(
+                    context: context,
+                    initialDateRange: DateTimeRange(start: selectedRange.start, end: selectedRange.end),
+                    firstDate: DateTime(1900),
+                    lastDate: DateTime.now(),
+                  );
+                  if (picked == null) return;
+                  ref.read(selectedFeeSummaryRangeProvider.notifier).state = (start: picked.start, end: picked.end);
                 },
               ),
-              IconButton(
-                tooltip: 'Next year',
-                icon: const Icon(Icons.chevron_right),
-                onPressed: (yearBoundsAsync.valueOrNull != null && selectedYear < yearBoundsAsync.valueOrNull!.maxYear)
-                    ? () => ref.read(selectedReportYearProvider.notifier).state = selectedYear + 1
-                    : null,
-              ),
               TextButton.icon(
-                icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
-                label: const Text('Export to PDF'),
-                onPressed: monthlyFeeAsync.valueOrNull == null
+                icon: _exporting
+                    ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                label: Text(_exporting ? 'Exporting…' : 'Export to PDF'),
+                onPressed: (_exporting || feeSummaryAsync.valueOrNull == null)
                     ? null
-                    : () => exportMonthlyFeeSummaryPdf(monthlyFeeAsync.valueOrNull!),
+                    : () => _export(feeSummaryAsync.valueOrNull!),
               ),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 12),
           AsyncValueView(
-            value: monthlyFeeAsync,
-            data: (context, months) => _MonthlyFeeSummaryTable(months: months),
+            value: feeSummaryAsync,
+            data: (context, summary) => _FeeSummaryCard(summary: summary),
           ),
           const SizedBox(height: 28),
           Text('Recent Activity', style: Theme.of(context).textTheme.titleMedium),
@@ -111,83 +120,51 @@ class ReportsScreen extends ConsumerWidget {
   }
 }
 
-class _MonthlyFeeSummaryTable extends StatelessWidget {
-  const _MonthlyFeeSummaryTable({required this.months});
+class _FeeSummaryCard extends StatelessWidget {
+  const _FeeSummaryCard({required this.summary});
 
-  final List<MonthlyFeeSummary> months;
+  final FeeSummary summary;
 
   @override
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Table(
-          columnWidths: const {
-            0: FlexColumnWidth(1.2),
-            1: FlexColumnWidth(1.4),
-            2: FlexColumnWidth(1.4),
-          },
+        padding: const EdgeInsets.all(16),
+        child: Row(
           children: [
-            TableRow(
-              decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Theme.of(context).dividerColor))),
-              children: [
-                _cell(context, 'Month', isHeader: true),
-                _cell(context, 'Collected', isHeader: true),
-                _cell(context, 'Pending', isHeader: true),
-              ],
+            Expanded(
+              child: _AmountStat(label: 'Collected', value: summary.collected, color: AppColors.statusPaid),
             ),
-            ...months.map(
-              (m) => TableRow(
-                children: [
-                  _cell(context, DateFormat('MMM yyyy').format(m.month)),
-                  _cell(context, formatCurrency(m.collected)),
-                  _cell(context, formatCurrency(m.pending)),
-                ],
-              ),
+            Expanded(
+              child: _AmountStat(label: 'Pending', value: summary.pending, color: AppColors.brandRed),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _cell(BuildContext context, String text, {bool isHeader = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-      child: Text(
-        text,
-        style: isHeader
-            ? Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700)
-            : Theme.of(context).textTheme.bodyMedium,
       ),
     );
   }
 }
 
-Future<int?> _pickYear(BuildContext context, {int? initial}) {
-  final now = DateTime.now();
-  var year = initial ?? now.year;
+class _AmountStat extends StatelessWidget {
+  const _AmountStat({required this.label, required this.value, required this.color});
 
-  return showDialog<int>(
-    context: context,
-    builder: (context) => StatefulBuilder(
-      builder: (context, setState) => AlertDialog(
-        title: const Text('Select year'),
-        content: DropdownButtonFormField<int>(
-          value: year,
-          decoration: const InputDecoration(labelText: 'Year'),
-          items: [
-            for (var y = now.year; y >= now.year - 10; y--) DropdownMenuItem(value: y, child: Text('$y')),
-          ],
-          onChanged: (v) => setState(() => year = v!),
+  final String label;
+  final double value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(label, style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 4),
+        Text(
+          formatCurrency(value),
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(color: color, fontWeight: FontWeight.w700),
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.of(context).pop(year), child: const Text('Apply')),
-        ],
-      ),
-    ),
-  );
+      ],
+    );
+  }
 }
 
 class _BreakdownTable extends StatelessWidget {

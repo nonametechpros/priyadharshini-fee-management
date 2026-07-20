@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/course_type.dart';
 import '../models/dashboard_summary.dart';
+import '../models/student.dart';
 
 /// Admin-only reporting built on Firestore's server-side aggregate queries
 /// (count / sum) so totals don't require downloading every student document.
@@ -74,53 +75,61 @@ class DashboardService {
       ..sort((a, b) => a.month.compareTo(b.month));
   }
 
-  /// The first calendar month (normalized to the 1st) that has any recorded
-  /// payment, or `null` if no payments have been recorded yet. Anchors the
-  /// Reports page's paginated "Monthly Fee Summary" view so it starts from
-  /// real data instead of an arbitrary rolling window.
-  Future<DateTime?> fetchEarliestPaymentMonth() async {
-    final snap = await _fees.orderBy('paymentDate').limit(1).get();
-    if (snap.docs.isEmpty) return null;
-    final date = (snap.docs.first.data()['paymentDate'] as Timestamp?)?.toDate();
-    if (date == null) return null;
-    return DateTime(date.year, date.month, 1);
-  }
+  /// Total collected vs. pending for the Reports page's "Fee Summary" card
+  /// and PDF export, over [start]..[end] inclusive (whole days), plus one
+  /// row per payment made in that range for the PDF's itemized bill.
+  /// [pending] is the sum of the *distinct* students who paid in the range's
+  /// current outstanding balance — the same figure each row's `pending`
+  /// draws from — so the card total and the PDF's footer total always agree;
+  /// summing every row instead would double-count a student who paid more
+  /// than once in the range.
+  Future<FeeSummary> fetchFeeSummary({required DateTime start, required DateTime end}) async {
+    final rangeEnd = DateTime(end.year, end.month, end.day, 23, 59, 59, 999);
 
-  /// Total collected vs. pending per month for the Reports page's "Monthly
-  /// Fee Summary" table, covering [months] months starting at [start].
-  /// Pending for a month is the outstanding balance of students whose
-  /// joining date falls in that month (there's no separate due-date field
-  /// in the schema).
-  Future<List<MonthlyFeeSummary>> fetchMonthlyFeeSummary({required DateTime start, int months = 6}) async {
-    final monthKeys = [for (var i = 0; i < months; i++) DateTime(start.year, start.month + i, 1)];
+    final feesSnap = await _fees
+        .where('paymentDate', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .where('paymentDate', isLessThanOrEqualTo: Timestamp.fromDate(rangeEnd))
+        .orderBy('paymentDate')
+        .get();
 
-    final collectedTotals = {for (final m in monthKeys) m: 0.0};
-    final feesSnap = await _fees.where('paymentDate', isGreaterThanOrEqualTo: Timestamp.fromDate(start)).get();
+    // Live-lookup each row's student, so a payment shows the student's
+    // current name/pending even if `studentName` predates that field being
+    // stored on the payment, or the student was later renamed.
+    final studentIds = <String>{
+      for (final doc in feesSnap.docs)
+        if ((doc.data()['studentId'] as String? ?? '').isNotEmpty) doc.data()['studentId'] as String,
+    }.toList();
+    final studentsById = <String, Student>{};
+    for (var i = 0; i < studentIds.length; i += 30) {
+      final chunk = studentIds.sublist(i, i + 30 > studentIds.length ? studentIds.length : i + 30);
+      final snap = await _students.where(FieldPath.documentId, whereIn: chunk).get();
+      for (final doc in snap.docs) {
+        studentsById[doc.id] = Student.fromDoc(doc);
+      }
+    }
+
+    var collected = 0.0;
+    final rows = <FeeSummaryRow>[];
     for (final doc in feesSnap.docs) {
       final data = doc.data();
-      final date = (data['paymentDate'] as Timestamp?)?.toDate();
-      if (date == null) continue;
-      final key = DateTime(date.year, date.month, 1);
-      if (!collectedTotals.containsKey(key)) continue;
       final amount = (data['amount'] as num?)?.toDouble() ?? 0;
-      collectedTotals.update(key, (v) => v + amount);
+      collected += amount;
+
+      final student = studentsById[data['studentId'] as String? ?? ''];
+      final name = student != null && student.fullName.isNotEmpty
+          ? student.fullName
+          : (data['studentName'] as String? ?? 'Unknown student');
+
+      rows.add(FeeSummaryRow(
+        date: (data['paymentDate'] as Timestamp?)?.toDate() ?? start,
+        studentName: name,
+        collected: amount,
+        pending: student?.amountPending ?? 0,
+      ));
     }
 
-    final pendingTotals = {for (final m in monthKeys) m: 0.0};
-    final studentsSnap = await _students.where('joiningDate', isGreaterThanOrEqualTo: Timestamp.fromDate(start)).get();
-    for (final doc in studentsSnap.docs) {
-      final data = doc.data();
-      final joining = (data['joiningDate'] as Timestamp?)?.toDate();
-      if (joining == null) continue;
-      final key = DateTime(joining.year, joining.month, 1);
-      if (!pendingTotals.containsKey(key)) continue;
-      final total = (data['totalAmount'] as num?)?.toDouble() ?? 0;
-      final paid = (data['amountPaid'] as num?)?.toDouble() ?? 0;
-      pendingTotals.update(key, (v) => v + (total - paid).clamp(0, double.infinity));
-    }
+    final pending = studentsById.values.fold<double>(0, (acc, s) => acc + s.amountPending);
 
-    return [
-      for (final m in monthKeys) MonthlyFeeSummary(month: m, collected: collectedTotals[m] ?? 0, pending: pendingTotals[m] ?? 0),
-    ];
+    return FeeSummary(start: start, end: end, collected: collected, pending: pending, rows: rows);
   }
 }

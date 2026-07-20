@@ -69,9 +69,7 @@ class _RecordPaymentSheetState extends ConsumerState<RecordPaymentSheet> {
             recordedByName: appUser.name,
           );
       ref.invalidate(dashboardSummaryProvider);
-      ref.invalidate(monthlyFeeSummaryProvider);
-      ref.invalidate(earliestPaymentMonthProvider);
-      ref.invalidate(reportsYearBoundsProvider);
+      ref.invalidate(feeSummaryProvider);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       setState(() => _errorText = 'Could not record payment. Please try again.');

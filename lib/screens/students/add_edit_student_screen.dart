@@ -120,7 +120,7 @@ class _AddEditStudentScreenState extends ConsumerState<AddEditStudentScreen> {
       }
 
       ref.invalidate(dashboardSummaryProvider);
-      ref.invalidate(monthlyFeeSummaryProvider);
+      ref.invalidate(feeSummaryProvider);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       setState(() => _errorText = 'Could not save student. Please try again.');

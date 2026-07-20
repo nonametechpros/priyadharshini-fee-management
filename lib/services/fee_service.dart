@@ -36,7 +36,7 @@ class FeeService {
   Future<PagedResult<FeePayment>> fetchPaymentsPage({
     required PaymentFilter filter,
     DocumentSnapshot<Map<String, dynamic>>? startAfter,
-    int pageSize = 10,
+    int pageSize = 20,
   }) async {
     Query<Map<String, dynamic>> query = _fees;
     if (filter.from != null) {
@@ -89,6 +89,7 @@ class FeeService {
 
       tx.set(feeRef, {
         'studentId': studentId,
+        'studentName': studentName,
         'amount': amount,
         'paymentDate': Timestamp.fromDate(paymentDate),
         'mode': mode.name,

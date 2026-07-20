@@ -29,6 +29,11 @@ PaymentMode paymentModeFromString(String value) {
 class FeePayment {
   final String id;
   final String studentId;
+  // Snapshot of the student's name at payment time, so the payment still
+  // displays correctly even if the student is later deleted or renamed.
+  // Null for records written before this field existed; see [studentServiceProvider]
+  // fallback lookups in fee_providers.dart for those legacy rows.
+  final String? studentName;
   final double amount;
   final DateTime paymentDate;
   final PaymentMode mode;
@@ -39,6 +44,7 @@ class FeePayment {
   const FeePayment({
     required this.id,
     required this.studentId,
+    this.studentName,
     required this.amount,
     required this.paymentDate,
     required this.mode,
@@ -52,6 +58,7 @@ class FeePayment {
     return FeePayment(
       id: doc.id,
       studentId: data['studentId'] as String? ?? '',
+      studentName: data['studentName'] as String?,
       amount: (data['amount'] as num?)?.toDouble() ?? 0,
       paymentDate: (data['paymentDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
       mode: paymentModeFromString(data['mode'] as String? ?? 'cash'),
@@ -64,6 +71,7 @@ class FeePayment {
   Map<String, dynamic> toMap() {
     return {
       'studentId': studentId,
+      'studentName': studentName,
       'amount': amount,
       'paymentDate': Timestamp.fromDate(paymentDate),
       'mode': mode.name,

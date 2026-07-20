@@ -47,13 +47,41 @@ class MonthlyCollection {
   const MonthlyCollection({required this.month, required this.amount});
 }
 
-/// One row of the Reports page's "Monthly Fee Summary" table: total amount
-/// collected during [month], plus the outstanding balance of students whose
-/// joining date falls in the month.
-class MonthlyFeeSummary {
-  final DateTime month;
+/// One payment row in a [FeeSummary]'s date range, for the Reports page's
+/// PDF export bill: the payment itself ([date], [studentName], [collected])
+/// alongside that student's current overall outstanding balance ([pending]).
+class FeeSummaryRow {
+  final DateTime date;
+  final String studentName;
   final double collected;
   final double pending;
 
-  const MonthlyFeeSummary({required this.month, required this.collected, required this.pending});
+  const FeeSummaryRow({
+    required this.date,
+    required this.studentName,
+    required this.collected,
+    required this.pending,
+  });
+}
+
+/// The Reports page's "Fee Summary" card and PDF export bill, for a selected
+/// date range. [collected]/[pending] are the on-screen card's totals;
+/// [pending] is the outstanding balance of students whose joining date falls
+/// within the range (there's no separate due-date field in the schema).
+/// [rows] is one entry per payment made in the range, for the PDF's
+/// itemized table.
+class FeeSummary {
+  final DateTime start;
+  final DateTime end;
+  final double collected;
+  final double pending;
+  final List<FeeSummaryRow> rows;
+
+  const FeeSummary({
+    required this.start,
+    required this.end,
+    required this.collected,
+    required this.pending,
+    required this.rows,
+  });
 }

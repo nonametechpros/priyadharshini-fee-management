@@ -50,11 +50,16 @@ service cloud.firestore {
       allow update: if request.resource.data.addedBy == resource.data.addedBy
         && (isActiveAdmin() || (isActiveStaff() && resource.data.addedBy == request.auth.uid));
 
-      allow delete: if isActiveAdmin()
-        || (isActiveStaff() && resource.data.addedBy == request.auth.uid);
+      // Deleting a student now cascades to their fees/activityLogs (see
+      // FeeService/StudentService), which only Admin may delete below, so
+      // student deletion itself is Admin-only too — otherwise a Staff-driven
+      // delete would leave orphaned fee/log records behind again.
+      allow delete: if isActiveAdmin();
     }
 
-    // ---- fees (append-only ledger) ----
+    // ---- fees (append-only ledger; the one exception is Admin cascading a
+    // student deletion, or cleaning up already-orphaned records, per
+    // StudentService.deleteStudent / FeeService.deleteOrphanedFeeRecords) ----
     match /fees/{feeId} {
       allow read: if isActiveAdmin() || isActiveStaff();
 
@@ -62,14 +67,17 @@ service cloud.firestore {
         && (isActiveAdmin()
           || (isActiveStaff() && studentOwnedByRequester(request.resource.data.studentId)));
 
-      allow update, delete: if false;
+      allow update: if false;
+      allow delete: if isActiveAdmin();
     }
 
-    // ---- activityLogs (append-only audit trail) ----
+    // ---- activityLogs (append-only audit trail; Admin-only delete, same
+    // cascade/cleanup exception as fees above) ----
     match /activityLogs/{logId} {
       allow read: if isActiveAdmin() || isActiveStaff();
       allow create: if signedIn() && request.resource.data.performedBy == request.auth.uid;
-      allow update, delete: if false;
+      allow update: if false;
+      allow delete: if isActiveAdmin();
     }
   }
 }

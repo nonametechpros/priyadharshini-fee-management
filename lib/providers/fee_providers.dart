@@ -16,11 +16,12 @@ final recentPaymentsProvider = StreamProvider.autoDispose<List<FeePayment>>((ref
   return ref.watch(feeServiceProvider).watchRecentPayments(limit: 5);
 });
 
-/// Names for the students behind [recentPaymentsProvider], so the Admin
-/// dashboard can show "Jane Doe" instead of a raw student ID.
+/// Fallback names for legacy payments in [recentPaymentsProvider] that predate
+/// the `studentName` field on [FeePayment] (new payments carry their own name
+/// and never need this live lookup).
 final recentPaymentsStudentNamesProvider = FutureProvider.autoDispose<Map<String, String>>((ref) async {
   final payments = await ref.watch(recentPaymentsProvider.future);
-  final ids = payments.map((p) => p.studentId).toSet();
+  final ids = payments.where((p) => p.studentName == null).map((p) => p.studentId).toSet();
   if (ids.isEmpty) return {};
   return ref.watch(studentServiceProvider).fetchNamesById(ids);
 });
@@ -96,10 +97,11 @@ class PaymentListController extends AutoDisposeAsyncNotifier<PaymentListState> {
 final paymentListControllerProvider =
     AsyncNotifierProvider.autoDispose<PaymentListController, PaymentListState>(PaymentListController.new);
 
-/// Names for the students behind the current page of [paymentListControllerProvider].
+/// Fallback names for legacy payments in [paymentListControllerProvider] that
+/// predate the `studentName` field on [FeePayment].
 final paymentListStudentNamesProvider = FutureProvider.autoDispose<Map<String, String>>((ref) async {
   final state = await ref.watch(paymentListControllerProvider.future);
-  final ids = state.items.map((p) => p.studentId).toSet();
+  final ids = state.items.where((p) => p.studentName == null).map((p) => p.studentId).toSet();
   if (ids.isEmpty) return {};
   return ref.watch(studentServiceProvider).fetchNamesById(ids);
 });

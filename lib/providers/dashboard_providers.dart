@@ -12,26 +12,16 @@ final monthlyCollectionsProvider = FutureProvider.autoDispose<List<MonthlyCollec
   return ref.watch(dashboardServiceProvider).fetchMonthlyCollections();
 });
 
-final earliestPaymentMonthProvider = FutureProvider.autoDispose<DateTime?>((ref) {
-  return ref.watch(dashboardServiceProvider).fetchEarliestPaymentMonth();
-});
-
-/// The year shown on the Reports page's "Monthly Fee Summary" table (always
-/// the full January-December range), defaulting to the current year.
-final selectedReportYearProvider = StateProvider.autoDispose<int>((ref) => DateTime.now().year);
-
-/// The earliest and latest years the Prev/Next arrows may page between: the
-/// year of the first recorded payment through the current year.
-final reportsYearBoundsProvider = FutureProvider.autoDispose<({int minYear, int maxYear})>((ref) async {
-  final earliest = await ref.watch(earliestPaymentMonthProvider.future);
+/// The date range shown on the Reports page's "Fee Summary" card, defaulting
+/// to the 1st of the current month through today.
+final selectedFeeSummaryRangeProvider = StateProvider.autoDispose<({DateTime start, DateTime end})>((ref) {
   final now = DateTime.now();
-  return (minYear: earliest?.year ?? now.year, maxYear: now.year);
+  return (start: DateTime(now.year, now.month, 1), end: DateTime(now.year, now.month, now.day));
 });
 
-final monthlyFeeSummaryProvider = FutureProvider.autoDispose<List<MonthlyFeeSummary>>((ref) async {
-  final service = ref.watch(dashboardServiceProvider);
-  final selectedYear = ref.watch(selectedReportYearProvider);
-  return service.fetchMonthlyFeeSummary(start: DateTime(selectedYear, 1, 1), months: 12);
+final feeSummaryProvider = FutureProvider.autoDispose<FeeSummary>((ref) {
+  final range = ref.watch(selectedFeeSummaryRangeProvider);
+  return ref.watch(dashboardServiceProvider).fetchFeeSummary(start: range.start, end: range.end);
 });
 
 final recentActivityProvider = StreamProvider.autoDispose<List<ActivityLog>>((ref) {
