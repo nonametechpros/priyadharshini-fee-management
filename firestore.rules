@@ -19,10 +19,6 @@ service cloud.firestore {
       return signedIn() && userDoc().role == 'staff' && userDoc().active == true;
     }
 
-    function studentOwnedByRequester(studentId) {
-      return get(/databases/$(database)/documents/students/$(studentId)).data.addedBy == request.auth.uid;
-    }
-
     // ---- users ----
     match /users/{uid} {
       // A brand-new staff account writes its own profile doc immediately
@@ -39,16 +35,30 @@ service cloud.firestore {
 
     // ---- students ----
     // Read is company-wide for any active staff member (Dashboard/Reports
-    // show the same totals to Staff as to Admin); write stays scoped to
-    // Admin or the staff member who added that particular student.
+    // show the same totals to Staff as to Admin). Profile edits/creation stay
+    // scoped to Admin or the staff member who added that particular student;
+    // recording a payment (amountPaid/feeStatus only) is company-wide too,
+    // same as read, see the `update` rule below.
     match /students/{studentId} {
       allow read: if isActiveAdmin() || isActiveStaff();
 
       allow create: if isActiveAdmin()
         || (isActiveStaff() && request.resource.data.addedBy == request.auth.uid);
 
+      // Full profile edits (name, address, course, totalAmount, ...) stay
+      // scoped to Admin or the staff member who added that student. Payment
+      // recording only ever touches amountPaid/feeStatus/updatedAt and is
+      // allowed for any active staff, matching the company-wide read access
+      // above (FeeService.recordPayment needs this to update the student's
+      // running total from any staff account, not just the one that added
+      // the student).
       allow update: if request.resource.data.addedBy == resource.data.addedBy
-        && (isActiveAdmin() || (isActiveStaff() && resource.data.addedBy == request.auth.uid));
+        && (
+          isActiveAdmin()
+          || (isActiveStaff() && resource.data.addedBy == request.auth.uid)
+          || (isActiveStaff() && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['amountPaid', 'feeStatus', 'updatedAt']))
+        );
 
       // Deleting a student now cascades to their fees/activityLogs (see
       // FeeService/StudentService), which only Admin may delete below, so
@@ -63,9 +73,11 @@ service cloud.firestore {
     match /fees/{feeId} {
       allow read: if isActiveAdmin() || isActiveStaff();
 
+      // Any active staff can record a payment for any student, matching the
+      // company-wide read access on students above (not just students they
+      // personally added).
       allow create: if request.resource.data.recordedBy == request.auth.uid
-        && (isActiveAdmin()
-          || (isActiveStaff() && studentOwnedByRequester(request.resource.data.studentId)));
+        && (isActiveAdmin() || isActiveStaff());
 
       allow update: if false;
       allow delete: if isActiveAdmin();
